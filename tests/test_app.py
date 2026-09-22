@@ -120,12 +120,12 @@ def test_signup_rejects_duplicate_student(client):
     }
 
 
-def test_signup_uses_shared_lock_for_duplicate_check_and_append():
+def test_signup_uses_activity_specific_lock_for_duplicate_check_and_append():
     # Arrange
     activity_name = "Art Club"
     email = "student@mergington.edu"
     original_activities = deepcopy(activities)
-    original_lock = app_module.signup_lock
+    original_lock = app_module.signup_locks[activity_name]
     events = []
 
     class RecordingLock:
@@ -135,13 +135,13 @@ def test_signup_uses_shared_lock_for_duplicate_check_and_append():
         def __exit__(self, exc_type, exc, tb):
             events.append("exit")
 
-    app_module.signup_lock = RecordingLock()
+    app_module.signup_locks[activity_name] = RecordingLock()
 
     try:
         # Act
         response = app_module.signup_for_activity(activity_name, email)
     finally:
-        app_module.signup_lock = original_lock
+        app_module.signup_locks[activity_name] = original_lock
         activities.clear()
         activities.update(original_activities)
 
