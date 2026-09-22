@@ -5,7 +5,6 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from collections import defaultdict
 import os
 from pathlib import Path
 from threading import Lock
@@ -56,7 +55,16 @@ activities = {
     }
 }
 
-activity_locks = defaultdict(Lock)
+activity_locks = {name: Lock() for name in activities}
+activity_locks_lock = Lock()
+
+
+def get_activity_lock(activity_name: str) -> Lock:
+    with activity_locks_lock:
+        if activity_name not in activity_locks:
+            activity_locks[activity_name] = Lock()
+
+        return activity_locks[activity_name]
 
 
 @app.get("/")
@@ -78,7 +86,7 @@ def signup_for_activity(activity_name: str, email: str):
 
     # Get the specific activity
     activity = activities[activity_name]
-    activity_lock = activity_locks[activity_name]
+    activity_lock = get_activity_lock(activity_name)
 
     with activity_lock:
         # Validate student is not already signed up
@@ -100,7 +108,7 @@ def remove_participant(activity_name: str, email: str):
         raise HTTPException(status_code=404, detail="Activity not found")
 
     activity = activities[activity_name]
-    activity_lock = activity_locks[activity_name]
+    activity_lock = get_activity_lock(activity_name)
     with activity_lock:
         try:
             activity["participants"].remove(email)
