@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -29,7 +30,19 @@ document.addEventListener("DOMContentLoaded", () => {
             <strong>Participants:</strong>
             <ul class="participants-list">
               ${details.participants.length
-                ? details.participants.map((participant) => `<li>${participant}</li>`).join("")
+                ? details.participants.map((participant) => `
+                    <li>
+                      <span>${participant}</span>
+                      <button
+                        class="remove-participant-button"
+                        type="button"
+                        aria-label="Remove ${participant} from ${name}"
+                        title="Remove participant"
+                        data-activity="${name}"
+                        data-email="${participant}"
+                      >&times;</button>
+                    </li>
+                  `).join("")
                 : "<li class=\"no-participants\">No participants yet</li>"}
             </ul>
           </div>
@@ -48,6 +61,30 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error fetching activities:", error);
     }
   }
+
+  activitiesList.addEventListener("click", async (event) => {
+    const removeButton = event.target.closest(".remove-participant-button");
+    if (!removeButton) return;
+
+    const { activity, email } = removeButton.dataset;
+    removeButton.disabled = true;
+
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activity)}/participants?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to remove participant");
+      }
+
+      await fetchActivities();
+    } catch (error) {
+      removeButton.disabled = false;
+      console.error("Error removing participant:", error);
+    }
+  });
 
   // Handle form submission
   signupForm.addEventListener("submit", async (event) => {
