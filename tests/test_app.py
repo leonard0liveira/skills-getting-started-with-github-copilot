@@ -3,6 +3,7 @@ from copy import deepcopy
 import pytest
 from fastapi.testclient import TestClient
 
+import src.app as app_module
 from src.app import activities, app
 
 
@@ -117,6 +118,90 @@ def test_signup_rejects_duplicate_student(client):
     assert response.json() == {
         "detail": "Student is already signed up for this activity"
     }
+
+
+def test_signup_uses_activity_specific_lock_for_duplicate_check_and_append():
+    # Arrange
+    activity_name = "Art Club"
+    email = "student@mergington.edu"
+    original_activities = deepcopy(activities)
+    original_lock = app_module.signup_locks[activity_name]
+    original_participants = activities[activity_name]["participants"]
+    events = []
+
+    class RecordingLock:
+        def __init__(self):
+            self.locked = False
+
+        def __enter__(self):
+            self.locked = True
+            events.append(("enter", self.locked))
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(("exit", self.locked))
+            self.locked = False
+
+    class RecordingParticipants(list):
+        def __init__(self, lock):
+            super().__init__()
+            self.lock = lock
+
+        def __contains__(self, item):
+            events.append(("contains", self.lock.locked))
+            return super().__contains__(item)
+
+        def append(self, item):
+            events.append(("append", self.lock.locked))
+            super().append(item)
+
+    recording_lock = RecordingLock()
+    activities[activity_name]["participants"] = RecordingParticipants(recording_lock)
+    app_module.signup_locks[activity_name] = recording_lock
+
+    try:
+        # Act
+        response = app_module.signup_for_activity(activity_name, email)
+    finally:
+        activities[activity_name]["participants"] = original_participants
+        app_module.signup_locks[activity_name] = original_lock
+        activities.clear()
+        activities.update(original_activities)
+
+    # Assert
+    assert response == {"message": f"Signed up {email} for {activity_name}"}
+    assert events == [
+        ("enter", True),
+        ("contains", True),
+        ("append", True),
+        ("exit", True),
+    ]
+
+
+def test_signup_creates_lock_for_activity_added_after_import():
+    # Arrange
+    activity_name = "Debate Club"
+    email = "student@mergington.edu"
+    original_activities = deepcopy(activities)
+    original_locks = dict(app_module.signup_locks)
+    activities[activity_name] = {
+        "description": "Practice debate and public speaking",
+        "schedule": "Mondays, 4:00 PM - 5:00 PM",
+        "max_participants": 16,
+        "participants": [],
+    }
+
+    try:
+        # Act
+        response = app_module.signup_for_activity(activity_name, email)
+
+        # Assert
+        assert response == {"message": f"Signed up {email} for {activity_name}"}
+        assert activity_name in app_module.signup_locks
+    finally:
+        app_module.signup_locks.clear()
+        app_module.signup_locks.update(original_locks)
+        activities.clear()
+        activities.update(original_activities)
 
 
 def test_signup_requires_email(client):
