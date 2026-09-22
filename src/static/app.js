@@ -4,6 +4,76 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  function createInfoParagraph(label, value) {
+    const paragraph = document.createElement("p");
+    const strong = document.createElement("strong");
+
+    strong.textContent = `${label}: `;
+    paragraph.append(strong, value);
+
+    return paragraph;
+  }
+
+  function createParticipantListItem(activityName, participant) {
+    const listItem = document.createElement("li");
+    const name = document.createElement("span");
+    const removeButton = document.createElement("button");
+
+    name.textContent = participant;
+
+    removeButton.className = "remove-participant-button";
+    removeButton.type = "button";
+    removeButton.ariaLabel = `Remove ${participant} from ${activityName}`;
+    removeButton.title = "Remove participant";
+    removeButton.dataset.activity = activityName;
+    removeButton.dataset.email = participant;
+    removeButton.textContent = "×";
+
+    listItem.append(name, removeButton);
+
+    return listItem;
+  }
+
+  function createActivityCard(name, details) {
+    const activityCard = document.createElement("div");
+    const heading = document.createElement("h4");
+    const description = document.createElement("p");
+    const participantsSection = document.createElement("div");
+    const participantsLabel = document.createElement("strong");
+    const participantsList = document.createElement("ul");
+    const spotsLeft = details.max_participants - details.participants.length;
+
+    activityCard.className = "activity-card";
+    heading.textContent = name;
+    description.textContent = details.description;
+    participantsSection.className = "participants-section";
+    participantsList.className = "participants-list";
+    participantsLabel.textContent = "Participants:";
+
+    if (details.participants.length) {
+      details.participants.forEach((participant) => {
+        participantsList.appendChild(createParticipantListItem(name, participant));
+      });
+    } else {
+      const emptyState = document.createElement("li");
+
+      emptyState.className = "no-participants";
+      emptyState.textContent = "No participants yet";
+      participantsList.appendChild(emptyState);
+    }
+
+    participantsSection.append(participantsLabel, participantsList);
+    activityCard.append(
+      heading,
+      description,
+      createInfoParagraph("Schedule", details.schedule),
+      createInfoParagraph("Availability", `${spotsLeft} spots left`),
+      participantsSection
+    );
+
+    return activityCard;
+  }
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
@@ -12,41 +82,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
-      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+      activitySelect.replaceChildren();
+
+      const defaultOption = document.createElement("option");
+      defaultOption.value = "";
+      defaultOption.textContent = "-- Select an activity --";
+      activitySelect.appendChild(defaultOption);
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
-        const activityCard = document.createElement("div");
-        activityCard.className = "activity-card";
-
-        const spotsLeft = details.max_participants - details.participants.length;
-
-        activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-          <div class="participants-section">
-            <strong>Participants:</strong>
-            <ul class="participants-list">
-              ${details.participants.length
-                ? details.participants.map((participant) => `
-                    <li>
-                      <span>${participant}</span>
-                      <button
-                        class="remove-participant-button"
-                        type="button"
-                        aria-label="Remove ${participant} from ${name}"
-                        title="Remove participant"
-                        data-activity="${name}"
-                        data-email="${participant}"
-                      >&times;</button>
-                    </li>
-                  `).join("")
-                : "<li class=\"no-participants\">No participants yet</li>"}
-            </ul>
-          </div>
-        `;
+        const activityCard = createActivityCard(name, details);
 
         activitiesList.appendChild(activityCard);
 

@@ -5,11 +5,13 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
 import os
 from pathlib import Path
+from threading import Lock
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
@@ -53,6 +55,17 @@ activities = {
     }
 }
 
+activity_locks = {name: Lock() for name in activities}
+activity_locks_lock = Lock()
+
+
+def get_activity_lock(activity_name: str) -> Lock:
+    with activity_locks_lock:
+        if activity_name not in activity_locks:
+            activity_locks[activity_name] = Lock()
+
+        return activity_locks[activity_name]
+
 
 @app.get("/")
 def root():
@@ -73,16 +86,18 @@ def signup_for_activity(activity_name: str, email: str):
 
     # Get the specific activity
     activity = activities[activity_name]
+    activity_lock = get_activity_lock(activity_name)
 
-    # Validate student is not already signed up
-    if email in activity["participants"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Student is already signed up for this activity"
-        )   
+    with activity_lock:
+        # Validate student is not already signed up
+        if email in activity["participants"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Student is already signed up for this activity"
+            )
 
-    # Add student
-    activity["participants"].append(email)
+        # Add student
+        activity["participants"].append(email)
     return {"message": f"Signed up {email} for {activity_name}"}
 
 
@@ -93,11 +108,13 @@ def remove_participant(activity_name: str, email: str):
         raise HTTPException(status_code=404, detail="Activity not found")
 
     activity = activities[activity_name]
-    if email not in activity["participants"]:
-        raise HTTPException(
-            status_code=404,
-            detail="Student is not signed up for this activity"
-        )
-
-    activity["participants"].remove(email)
+    activity_lock = get_activity_lock(activity_name)
+    with activity_lock:
+        try:
+            activity["participants"].remove(email)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail="Student is not signed up for this activity"
+            ) from exc
     return {"message": f"Removed {email} from {activity_name}"}
