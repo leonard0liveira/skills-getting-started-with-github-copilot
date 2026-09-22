@@ -5,6 +5,7 @@ A super simple FastAPI application that allows students to view and sign up
 for extracurricular activities at Mergington High School.
 """
 
+from collections import defaultdict
 import os
 from pathlib import Path
 from threading import Lock
@@ -55,7 +56,7 @@ activities = {
     }
 }
 
-activity_locks = {name: Lock() for name in activities}
+activity_locks = defaultdict(Lock)
 
 
 @app.get("/")
