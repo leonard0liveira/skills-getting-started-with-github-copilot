@@ -99,11 +99,11 @@ def remove_participant(activity_name: str, email: str):
 
     activity = activities[activity_name]
     with activities_lock:
-        if email not in activity["participants"]:
+        try:
+            activity["participants"].remove(email)
+        except ValueError as exc:
             raise HTTPException(
                 status_code=404,
                 detail="Student is not signed up for this activity"
-            )
-
-        activity["participants"].remove(email)
+            ) from exc
     return {"message": f"Removed {email} from {activity_name}"}
