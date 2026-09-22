@@ -3,6 +3,7 @@ from copy import deepcopy
 import pytest
 from fastapi.testclient import TestClient
 
+import src.app as app_module
 from src.app import activities, app
 
 
@@ -117,6 +118,36 @@ def test_signup_rejects_duplicate_student(client):
     assert response.json() == {
         "detail": "Student is already signed up for this activity"
     }
+
+
+def test_signup_uses_shared_lock_for_duplicate_check_and_append():
+    # Arrange
+    activity_name = "Art Club"
+    email = "student@mergington.edu"
+    original_activities = deepcopy(activities)
+    original_lock = app_module.signup_lock
+    events = []
+
+    class RecordingLock:
+        def __enter__(self):
+            events.append("enter")
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append("exit")
+
+    app_module.signup_lock = RecordingLock()
+
+    try:
+        # Act
+        response = app_module.signup_for_activity(activity_name, email)
+    finally:
+        app_module.signup_lock = original_lock
+        activities.clear()
+        activities.update(original_activities)
+
+    # Assert
+    assert response == {"message": f"Signed up {email} for {activity_name}"}
+    assert events == ["enter", "exit"]
 
 
 def test_signup_requires_email(client):
