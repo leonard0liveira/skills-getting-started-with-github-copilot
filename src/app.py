@@ -55,6 +55,12 @@ activities = {
 }
 
 signup_locks = {activity_name: Lock() for activity_name in activities}
+signup_locks_lock = Lock()
+
+
+def get_signup_lock(activity_name: str):
+    with signup_locks_lock:
+        return signup_locks.setdefault(activity_name, Lock())
 
 
 @app.get("/")
@@ -77,7 +83,7 @@ def signup_for_activity(activity_name: str, email: str):
     # Get the specific activity
     activity = activities[activity_name]
 
-    with signup_locks[activity_name]:
+    with get_signup_lock(activity_name):
         # Validate student is not already signed up
         if email in activity["participants"]:
             raise HTTPException(

@@ -177,6 +177,33 @@ def test_signup_uses_activity_specific_lock_for_duplicate_check_and_append():
     ]
 
 
+def test_signup_creates_lock_for_activity_added_after_import():
+    # Arrange
+    activity_name = "Debate Club"
+    email = "student@mergington.edu"
+    original_activities = deepcopy(activities)
+    original_locks = dict(app_module.signup_locks)
+    activities[activity_name] = {
+        "description": "Practice debate and public speaking",
+        "schedule": "Mondays, 4:00 PM - 5:00 PM",
+        "max_participants": 16,
+        "participants": [],
+    }
+
+    try:
+        # Act
+        response = app_module.signup_for_activity(activity_name, email)
+
+        # Assert
+        assert response == {"message": f"Signed up {email} for {activity_name}"}
+        assert activity_name in app_module.signup_locks
+    finally:
+        app_module.signup_locks.clear()
+        app_module.signup_locks.update(original_locks)
+        activities.clear()
+        activities.update(original_activities)
+
+
 def test_signup_requires_email(client):
     # Arrange
     activity_name = "Art Club"
