@@ -55,7 +55,7 @@ activities = {
     }
 }
 
-activities_lock = Lock()
+activity_locks = {name: Lock() for name in activities}
 
 
 @app.get("/")
@@ -77,8 +77,9 @@ def signup_for_activity(activity_name: str, email: str):
 
     # Get the specific activity
     activity = activities[activity_name]
+    activity_lock = activity_locks[activity_name]
 
-    with activities_lock:
+    with activity_lock:
         # Validate student is not already signed up
         if email in activity["participants"]:
             raise HTTPException(
@@ -98,7 +99,8 @@ def remove_participant(activity_name: str, email: str):
         raise HTTPException(status_code=404, detail="Activity not found")
 
     activity = activities[activity_name]
-    with activities_lock:
+    activity_lock = activity_locks[activity_name]
+    with activity_lock:
         try:
             activity["participants"].remove(email)
         except ValueError as exc:
