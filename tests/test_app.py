@@ -126,28 +126,55 @@ def test_signup_uses_activity_specific_lock_for_duplicate_check_and_append():
     email = "student@mergington.edu"
     original_activities = deepcopy(activities)
     original_lock = app_module.signup_locks[activity_name]
+    original_participants = activities[activity_name]["participants"]
     events = []
 
     class RecordingLock:
+        def __init__(self):
+            self.locked = False
+
         def __enter__(self):
-            events.append("enter")
+            self.locked = True
+            events.append(("enter", self.locked))
 
         def __exit__(self, exc_type, exc, tb):
-            events.append("exit")
+            events.append(("exit", self.locked))
+            self.locked = False
 
-    app_module.signup_locks[activity_name] = RecordingLock()
+    class RecordingParticipants(list):
+        def __init__(self, lock):
+            super().__init__()
+            self.lock = lock
+
+        def __contains__(self, item):
+            events.append(("contains", self.lock.locked))
+            return super().__contains__(item)
+
+        def append(self, item):
+            events.append(("append", self.lock.locked))
+            super().append(item)
+
+    recording_lock = RecordingLock()
+    activities[activity_name]["participants"] = RecordingParticipants(recording_lock)
+    app_module.signup_locks[activity_name] = recording_lock
 
     try:
         # Act
         response = app_module.signup_for_activity(activity_name, email)
     finally:
+        activities[activity_name]["participants"] = original_participants
         app_module.signup_locks[activity_name] = original_lock
         activities.clear()
         activities.update(original_activities)
 
     # Assert
     assert response == {"message": f"Signed up {email} for {activity_name}"}
-    assert events == ["enter", "exit"]
+    assert events == [
+        ("enter", True),
+        ("contains", True),
+        ("append", True),
+        ("exit", True),
+    ]
 
 
 def test_signup_requires_email(client):
