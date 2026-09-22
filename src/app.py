@@ -59,6 +59,7 @@ signup_locks_lock = Lock()
 
 
 def get_signup_lock(activity_name: str):
+    """Return the per-activity signup lock, creating it safely on first use."""
     with signup_locks_lock:
         return signup_locks.setdefault(activity_name, Lock())
 
